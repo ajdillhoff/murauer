@@ -16,10 +16,9 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with MURAUER.  If not, see <http://www.gnu.org/licenses/>.
 """
-        
+
 # Cycle/Re-start over and over (but without storing copies as with itertools.cycle())
 def cycle_no_memory(iterable):
     while True:
         for i in iterable:
             yield i
-    

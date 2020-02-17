@@ -24,21 +24,21 @@ ICVLFrame = namedtuple('ICVLFrame',
                        ['dpt','gtorig','gtcrop','T','gt3Dorig',
                        'gt3Dcrop','com','fileName','subSeqName','config'])
 NamedImgSequence = namedtuple('NamedImgSequence',['name','data','config'])
-TrainLoaders = namedtuple('TrainLoaders', ['train_loader', 
-                                           'loader_pretrain', 
-                                           'loader_corr', 
-                                           'loader_real', 
-                                           'loader_synth', 
-                                           'loader_real_weakcorr_ul', 
-                                           'loader_synth_weakcorr_ul', 
+TrainLoaders = namedtuple('TrainLoaders', ['train_loader',
+                                           'loader_pretrain',
+                                           'loader_corr',
+                                           'loader_real',
+                                           'loader_synth',
+                                           'loader_real_weakcorr_ul',
+                                           'loader_synth_weakcorr_ul',
                                            'loader_preview'])
-                                          
+
 
 class Camera(object):
     """
     Just encapsulating some camera information/parameters
     """
-    
+
     def __init__(self, camid=0, fx=None, fy=None, ux=None, uy=None):
         self.camid = camid
         self.fx = fx
@@ -52,7 +52,7 @@ class TrainingType(IntEnum):
     ADVERSARIAL = 2
     BATCHNORM_ONLY = 3
     FINETUNE_LAYER_DEPENDENT_LR = 4
-    
+
     @classmethod
     def is_training_type_adversarial(self, training_type):
         return_val = False
@@ -60,7 +60,7 @@ class TrainingType(IntEnum):
             return_val = True
         return return_val
 
-        
+
 class NetType(IntEnum):
     HAPE_DCGAN = 0
     HAPE_RESNET50 = 1
@@ -70,7 +70,7 @@ class NetType(IntEnum):
     HAPE_RESNET50_MARKUS_MAP_PREVIEW = 5
     HAPE_RESNET50_MARKUS_A = 6
     HAPE_RESNET50_MAP_PREVIEW = 7
-    
+
     @classmethod
     def get_num_output_views(self, net_type):
         return_val = 0
@@ -78,19 +78,19 @@ class NetType(IntEnum):
             or net_type == self.HAPE_RESNET50_MAP_PREVIEW:
             return_val = 1
         return return_val
-        
-        
+
+
 class DiscriminatorNetType(IntEnum):
     LINEAR = 0
     RESNET = 1
-    
-    
+
+
 class LoaderMode(IntEnum):
     TRAIN = 0
     VAL = 1
     TEST = 2
-    
-    
+
+
 class DatasetType(IntEnum):
     NYU = 0
     ICG = 1
@@ -105,7 +105,7 @@ class ICVLPairStacks(object):
         self.x1 = x1
         self.y0 = y0
         self.y1 = y1
-        
+
     def normalize(self,mean,std):
         self.x0 -= mean
         self.x0 /= std
@@ -128,11 +128,11 @@ class ImgStackAndIndices(object):
         self.nPairsPerBatch = nPairsPerBatch
         self.nTripletsPerBatch = nTripletsPerBatch
         self.batchSize = batchSize
-        
-        
+
+
 class Jitter(object):
     """
-    Collection of jitter parameters (i.e., random numbers for specific jitter 
+    Collection of jitter parameters (i.e., random numbers for specific jitter
     "actions"). E.g., to re-produce a specific jittered example.
     """
     def __init__(self):
@@ -140,10 +140,7 @@ class Jitter(object):
         self.rotation_angle_scale = None
         self.detection_offset_scale = None
         self.crop_scale = None
-        
-        
+
+
 class Arguments(object):
     pass
-
-
-

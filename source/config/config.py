@@ -26,7 +26,7 @@ import numpy as np
 args = basetypes.Arguments()
 
 # How many (CPU) workers for loading data
-args.num_loader_workers = 5
+args.num_loader_workers = 10
 
 # Model architecture specific parameters
 # Number of (base-)feature channels (usually increased after downsampling)

@@ -25,7 +25,7 @@ import matplotlib
 try:
     os.environ["DISPLAY"]
 except:
-    matplotlib.use("Agg")   # for machines without display    
+    matplotlib.use("Agg")   # for machines without display
 
 # PyTorch
 import torch
@@ -38,7 +38,6 @@ import eval.handpose_evaluation as hape_eval
 import data.loaderfactory as loaderfactory
 from data.basetypes import LoaderMode
 from util.argparse_helper import parse_arguments_generic
-import util.output as out
 from util.helper import prepare_output_dirs_files, save_params
 
 import numpy as np
@@ -49,7 +48,8 @@ import os.path
 from config.config import args                  # general parameters
 args = parse_arguments_generic(args)            # command-line parameters
 from config.config_data_nyu import args_data    # dataset specific parameters
-args.__dict__ = dict(args.__dict__.items() + args_data.__dict__.items()) # merge into single object
+# args.__dict__ = dict(args.__dict__.items() + args_data.__dict__.items()) # merge into single object
+args.__dict__ = {**args.__dict__, **args_data.__dict__}
 
 args.used_device = torch.device("cuda:{}".format(args.gpu_id) if args.cuda else "cpu")
 
@@ -59,19 +59,17 @@ with torch.cuda.device(args.gpu_id):
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
     args.rng = np.random.RandomState(args.seed)
-    
+
     prepare_output_dirs_files(args, os.path.dirname(os.path.realpath(__file__)))
     save_params(args.filepath_args, args)
-        
-    
+
     #%% Create data loaders
     if args.do_train:
         train_loaders = loaderfactory.create_train_loaders(args)
         val_loader = loaderfactory.create_dataloader(LoaderMode.VAL, args)
     if args.do_test:
         test_loader = loaderfactory.create_dataloader(LoaderMode.TEST, args)
-                                                 
-    
+
     #%% Train/Load model
     model, model_d = netfactory.create_net(args.net_type, args)
     # Load pretrained model if required
@@ -79,30 +77,28 @@ with torch.cuda.device(args.gpu_id):
         print("Loading pre-trained model from file {}...".format(
             args.pretrained_model_filepath))
         # First load to CPU (no matter where it was before)
-        model.load_state_dict(torch.load(args.pretrained_model_filepath, 
+        model.load_state_dict(torch.load(args.pretrained_model_filepath,
                                          map_location=lambda storage, loc: storage))
         model.to(args.used_device)
-    
+
     if args.do_train:
-        tb_log = out.create_crayon_logger(args.exp_name, args.crayon_logger_port)
         print("Training...")
         trainer = SuperTrainer()
-        trainer.train(model, model_d, train_loaders, val_loader, args, tb_log)
-        
+        trainer.train(model, model_d, train_loaders, val_loader, args, None)
+
         # Backup experiment logs as zip file
         filename = tb_log.to_zip(args.log_filepath)
         print("Stored log in file {}".format(filename))
-        
+
     # Load stored (best/last) model file
     descr_str = "best" if args.do_use_best_model else "last"
     print("Loading {} model...".format(descr_str))
     print("  from file {}".format(args.model_filepath))
     # First load to CPU (no matter where it was before)
-    model.load_state_dict(torch.load(args.model_filepath, 
+    model.load_state_dict(torch.load(args.model_filepath,
                                      map_location=lambda storage, loc: storage))
     model.to(args.used_device)
-        
-        
+
     #%% Evaluate
     if args.do_test:
         print("Evaluating model on test set...")
@@ -116,8 +112,7 @@ with torch.cuda.device(args.gpu_id):
             print("Writing qualitative results...")
             hpe = hape_eval.NYUHandposeEvaluation(targets, predictions, args.num_joints)
             hpe.outputPath = args.out_path_results_images
-            hpe.writeQualitativeResults(data, crop_transforms, 
+            hpe.writeQualitativeResults(data, crop_transforms,
                                         predictions, targets, test_loader, args)
-        
+
 print("Finished experiment.")
-    

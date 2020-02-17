@@ -118,7 +118,7 @@ class Bottleneck(nn.Module):
 class MappingBlock(nn.Module):
     """
     As described in Rad et al., CVPR 2018 [1]
-    
+
     [1] https://arxiv.org/abs/1712.03904
     """
     expansion = 1
@@ -127,7 +127,7 @@ class MappingBlock(nn.Module):
         super(MappingBlock, self).__init__()
         self.fc1 = nn.Linear(num_in_planes, num_out_planes)
         self.fc2 = nn.Linear(num_in_planes, num_out_planes)
-        
+
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
 
@@ -144,33 +144,31 @@ class MappingBlock(nn.Module):
         out += residual
 
         return out
-        
+
 
 #%% Network definition
 class DiscriminatorResNet(nn.Module):
     """
     Discriminator (for an embedding) based on ResNet blocks
     """
-    
     def __init__(self, num_in_planes, num_features=1024, 
                  base_block=MappingBlock, num_blocks=2):
         """
-        
+
         Arguments:
             num_features (int, optional): number of input features/dimensions
                 default: 1024
         """
         super(DiscriminatorResNet, self).__init__()
-        
+
         nf = num_features
-        
+
         # ResNet
         self.inplanes = num_in_planes
         self.resnetlayer = self._make_layer(base_block, nf, num_blocks)
-        
+
         self.fc = nn.Linear(nf, 1)
-        
-        
+
     def _make_layer(self, base_block, planes, blocks, stride=1):
         downsample = None
         if stride != 1 or self.inplanes != planes * base_block.expansion:
@@ -187,24 +185,23 @@ class DiscriminatorResNet(nn.Module):
             layers.append(base_block(self.inplanes, planes))
 
         return nn.Sequential(*layers)
-        
 
     def forward(self, x):
         x = self.resnetlayer(x)
         x = self.fc(x)
         return x
-        
-        
+
+
 class PreViewDecoderDcGan(nn.Module):
     """
     Decoder net, based on DC-GAN architecture [1].
-    
+
     [1] Radford et al., ICLR 2016, https://arxiv.org/pdf/1511.06434.pdf
     """
-    
+
     def __init__(self, num_input_dim=30, num_com_dim=3, num_features=64):
         """
-        
+
         Arguments:
             do_use_gpu (boolean, optional): compute on GPU (=default) or CPU?
             num_input_dim (int, optional): #input dimensions; default: 30
@@ -215,7 +212,7 @@ class PreViewDecoderDcGan(nn.Module):
                 default: 64
         """
         super(PreViewDecoderDcGan, self).__init__()
-        
+
         nf = num_features
 
         # Decoder
@@ -234,10 +231,9 @@ class PreViewDecoderDcGan(nn.Module):
         self.bn4_d = nn.BatchNorm2d(nf)
         self.convt5 = nn.ConvTranspose2d(nf, 1, (4, 4), 
                                          stride=2, padding=1, bias=False)
-        
+
         self.relu = nn.ReLU(inplace=True)
         self.leakyrelu = nn.LeakyReLU(0.2, inplace=True)
-        
 
     def decode(self, z):
         y = self.leakyrelu(self.bn1_d(self.convt1(z)))
@@ -247,12 +243,11 @@ class PreViewDecoderDcGan(nn.Module):
         y = torch.tanh(F.interpolate(self.convt5(y), scale_factor=2, 
                                      mode='bilinear', align_corners=True))
         return y
-        
 
     def forward(self, z, com):
         """
         Arguments:
-            com (Tensor): conditional for generator/decoder; 
+            com (Tensor): conditional for generator/decoder;
         """
         z = torch.cat((z, com), 1)      # concat. z and com
         z = z.unsqueeze(2).unsqueeze(2) # add two singleton dims; BxD => BxDx1x1
@@ -262,22 +257,21 @@ class PreViewDecoderDcGan(nn.Module):
 
 class ResNet_Map_PreView(nn.Module):
     """
-    ResNet based architecture for hand pose regression with 
-    mapping layers as in Rad et al., CVPR 2018 [1], and 
+    ResNet based architecture for hand pose regression with
+    mapping layers as in Rad et al., CVPR 2018 [1], and
     view prediction as in our CVPR 2018 paper [2].
-    
+
     [1] https://arxiv.org/abs/1712.03904
     [2] https://arxiv.org/abs/1804.03390
     """
-
-    def __init__(self, base_block, num_blocks_per_layer, num_classes=(16*3), 
-                 num_features=32, mapping_block=MappingBlock, 
+    def __init__(self, base_block, num_blocks_per_layer, num_classes=(16*3),
+                 num_features=32, mapping_block=MappingBlock,
                  num_blocks_mappinglayer=2, num_bottleneck_dim=1024):
         """
         Arguments:
-            num_features (int, optional): number of feature channels in the 
-                first/lowest layer (highest resolution), it is increased 
-                inversely proportional with downscaling at each layer; 
+            num_features (int, optional): number of feature channels in the
+                first/lowest layer (highest resolution), it is increased
+                inversely proportional with downscaling at each layer;
                 default: 32
         """
         nf = num_features
@@ -295,13 +289,13 @@ class ResNet_Map_PreView(nn.Module):
         self.bn_res = nn.BatchNorm2d(nf*8)
         self.fc1 = nn.Linear(nf*8*4*4, 1024)
         self.fc2 = nn.Linear(1024, nb)
-        
+
         # Mapping layer
         self.inplanes = 1024
         self.mappinglayer = self._make_layer(mapping_block, 1024, num_blocks_mappinglayer)
-        
+
         self.preview = PreViewDecoderDcGan(nb, 3)
-        
+
         self.fc3_h0 = nn.Linear(nb, num_classes)
         self.fc3_h1 = nn.Linear(nb, num_classes)    # for using pre-trained models
 
@@ -330,7 +324,7 @@ class ResNet_Map_PreView(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x, com, do_map=True, do_preview=True, 
+    def forward(self, x, com, do_map=True, do_preview=True,
                 do_backprop_through_feature_extr_before_map=True):
         x = self.conv1(x)
         x = self.maxpool(x)
@@ -339,7 +333,7 @@ class ResNet_Map_PreView(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-        
+
         x = self.bn_res(x)
         x = self.relu(x)
 
@@ -352,15 +346,14 @@ class ResNet_Map_PreView(nn.Module):
         x = self.relu(emb)
         x = self.fc2(x)
         x = self.relu(x)
-        
+
         x1 = None
         if do_preview:
             x1 = self.preview(x, com)
-        
+
         x = self.fc3_h0(x)
 
         return x, emb, x1
-
 
 def resnet50(net_type=None, **kwargs):
     """Constructs a ResNet-50 based model.
@@ -368,12 +361,12 @@ def resnet50(net_type=None, **kwargs):
     Args:
         net_type (string): model architecture (only one implemented here):
                             'MapPreview' ..... architecture from MURAUER [1]
-                            
+
     [1] https://arxiv.org/abs/1811.09497
     """
     if net_type == 'MapPreview':
         model = ResNet_Map_PreView(Bottleneck, [5, 5, 5, 5], **kwargs)
     else:
         raise UserWarning("Required net_type not implemented.")
-        
+
     return model

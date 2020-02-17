@@ -26,7 +26,7 @@ import numpy
 import os
 import time
 import matplotlib.pyplot as plt
-import cPickle
+import pickle
 
 # Pytorch
 import torch
@@ -36,7 +36,7 @@ import torch
 def evaluate_model(model, testset_loader, used_device):
     """
     Evaluates a learned model on the data provided by the loader
-    
+
     Arguments:
         model (torch.nn.Module): the trained model
         testset_loader (torch.utils.data.DataLoader): loader for test samples;
@@ -46,16 +46,16 @@ def evaluate_model(model, testset_loader, used_device):
     with torch.no_grad():
         numJoints = testset_loader.dataset.args_data.num_joints
         sample_size = testset_loader.dataset[0][0].numpy().shape
-            
+
         model = model.to(used_device)
         model.eval()
-        
+
         data_all = numpy.zeros((0, sample_size[0], sample_size[1], sample_size[2]))
         targets_all = numpy.zeros((0, numJoints, 3))
         estimates_all = numpy.zeros((0, numJoints, 3))
         transforms_all = numpy.zeros((0, 3, 3))
         coms_all = numpy.zeros((0, 3))
-        
+
         t0 = time.time()
         time_sum = 0.0
         for data,_,_, targets,_,_, transforms,_,_, coms,_,_, sizes,_,_, \
@@ -72,7 +72,7 @@ def evaluate_model(model, testset_loader, used_device):
             time_sum += t1_ - t0_
             if isinstance(estimates, tuple):    # a model which returns a tuple shall return the pose first
                 estimates = estimates[0]
-            
+
             # Prepare output transform result space, to numpy arrays, ...
             data_all = numpy.append(data_all, data.data.cpu().numpy(), axis=0)
             com_n = coms.numpy()
@@ -81,16 +81,16 @@ def evaluate_model(model, testset_loader, used_device):
             targets = testset_loader.dataset.denormalize_joint_pos(targets, sizes)
             targets = targets + com_n.reshape(com_n.shape[0], 1, com_n.shape[1])
             targets_all = numpy.append(targets_all, targets, axis=0)
-            
+
             estimates = estimates.data.cpu().view(-1,numJoints,3).numpy()
             estimates = testset_loader.dataset.denormalize_joint_pos(estimates, sizes)
             estimates = estimates + com_n.reshape(com_n.shape[0], 1, com_n.shape[1])
             estimates_all = numpy.append(estimates_all, estimates, axis=0)
-            
+
             transforms_all = numpy.append(transforms_all, transforms.numpy(), axis=0)
-            
+
             coms_all = numpy.append(coms_all, com_n, axis=0)
-        
+
         t1 = time.time()
         runtime = t1 - t0
         num_images = len(testset_loader.sampler)
@@ -98,7 +98,7 @@ def evaluate_model(model, testset_loader, used_device):
             num_images, runtime, runtime / float(num_images) * 1000.0))
         print("  Time measured only for fprops: {:.2f} sec. ({:.1f} msec./image)".format(
             time_sum, time_sum / float(num_images) * 1000.0))
-        
+
         return targets_all, estimates_all, transforms_all, coms_all, data_all
 
 
@@ -106,37 +106,37 @@ def compute_and_output_results(targets, predictions, dataset, args, out_path):
     hpe = get_evaluator(targets, predictions, args)
     hpe.outputPath = out_path
     num_joints = targets.shape[1]
-    
+
     # Compute (and print) basic errors
     mean_error = hpe.getMeanError()
     print("  Mean error: {:.2f} mm".format(mean_error))
     print("  FS80: {:.3f}".format(hpe.getMDscore(80)))
-            
+
     # Write evaluation results to textfile
     out_result_filepath = os.path.join(out_path, args.out_filename_result)
     hpe.writeResults2Textfile(out_result_filepath)
-    
+
     # Write predicted joint positions (binary)
     filepath_est = os.path.join(out_path, args.out_filename_joint_positions_estimated)
-    cPickle.dump(predictions, open(filepath_est, "wb"), protocol=cPickle.HIGHEST_PROTOCOL)
+    pickle.dump(predictions, open(filepath_est, "wb"), protocol=pickle.HIGHEST_PROTOCOL)
     # Write ground truth joint positions (binary)
     filepath_gt = os.path.join(out_path, args.out_filename_joint_positions_groundtruth)
-    cPickle.dump(targets, open(filepath_gt, "wb"), protocol=cPickle.HIGHEST_PROTOCOL)
-    
+    pickle.dump(targets, open(filepath_gt, "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+
     # Write predicted joint positions (xyz, to text-file)
     jts_out = predictions.reshape(-1, num_joints * 3)
     filepath_txt_xyz = os.path.join(out_path, args.out_filename_joint_positions_estimated_xyz_txt)
     numpy.savetxt(filepath_txt_xyz, jts_out, args.out_fmt_txt)
-    
+
     # Convert predicted joint positions to uvd and write to text-file
     predictions_uvd = dataset.points3DToImg(predictions.reshape(-1, 3))
     predictions_uvd = predictions_uvd.reshape(-1, num_joints * 3)
     filepath_txt_uvd = os.path.join(out_path, args.out_filename_joint_positions_estimated_uvd_txt)
     numpy.savetxt(filepath_txt_uvd, predictions_uvd, args.out_fmt_txt)
-    
+
     hpe.plotEvaluation(args.exp_name, methodName='Ours')
-                
-                
+
+
 def get_evaluator(targets, predictions, args):
     """
     Create an evaluator for the dataset specified by args.dataset_type
@@ -299,8 +299,8 @@ class HandposeEvaluation(object):
         """
         return (numpy.median(numpy.sqrt(
             numpy.square(self.gt - self.joints).sum(axis=2)), axis=1) <= dist).sum()
-        
-        
+
+
     def getNumJointsWithinDist(self, dist):
         """
         calculate the number of joints within dist mm to ground truth
@@ -314,21 +314,21 @@ class HandposeEvaluation(object):
     def getMDscore(self, dist):
         """
         Calculate the max dist score, ie. MD=\int_0^d{\frac{|F<x|}{|F|}dx = \sum
-        That is the area-under-the-curve (AuC) for the frame based success rate 
+        That is the area-under-the-curve (AuC) for the frame based success rate
         up to the given dist.
         :param dist: distance between joint and GT
         :return: score value [0-1]
         """
         vals = [(numpy.nanmax(numpy.sqrt(numpy.square(
-            self.gt - self.joints).sum(axis=2)), axis=1) <= j).sum() 
+            self.gt - self.joints).sum(axis=2)), axis=1) <= j).sum()
             / float(self.joints.shape[0]) for j in range(0, dist)]
         return numpy.asarray(vals).sum() / float(dist)
-        
-        
+
+
     def getJointSuccesAuC(self, dist):
         """
-        Compute the area-under-the-curve (AuC) score for the joint based 
-        success rate (i.e., AuC for 'joints within distance' plot up to given 
+        Compute the area-under-the-curve (AuC) score for the joint based
+        success rate (i.e., AuC for 'joints within distance' plot up to given
         dist). This is the 'MD-score' for individual joints (instead of frames)
         :param dist: distance between joint and GT
         :return: score value [0-1]
@@ -338,14 +338,14 @@ class HandposeEvaluation(object):
         return numpy.asarray(vals).sum() / float(dist)
 
 
-    def plotEvaluation(self, basename, methodName='Our method', baseline=None, 
+    def plotEvaluation(self, basename, methodName='Our method', baseline=None,
                        basePath=None, curveColors=None, lineWidth=None):
         """
         plot and save standard evaluation plots
         :param basename: file basename, i.e., prefix for (output) filenames
         :param methodName: our method name
         :param baseline: list of baselines as tuple (Name,evaluation object)
-        :param basePath: if not None this path is used as base-path instead of 
+        :param basePath: if not None this path is used as base-path instead of
                          the default path (self.outputPath)
         :param curveColors: list of colors for each method (see self.colors for default)
         :param lineWidth: line width for the curves
@@ -357,16 +357,16 @@ class HandposeEvaluation(object):
                 if not (isinstance(bs[1], self.__class__)):
                     raise TypeError('baseline must be of type {} but {} provided'.format(
                         self.__class__.__name__, bs[1].__class__.__name__))
-                                                                                                                                                                                  
+
         if basePath is None:
             basePath = self.outputPath
-            
+
         if curveColors is None:
             curveColors = self.colors
-            
+
         if lineWidth is None:
             lineWidth = self.lineWidth
-            
+
         if not os.path.exists(basePath):
             os.makedirs(basePath)
 
@@ -379,8 +379,8 @@ class HandposeEvaluation(object):
         if baseline is not None:
             for bs in baseline:
                 ax.plot([bs[1].getNumFramesWithinMaxDist(j) / float(self.joints.shape[0]) * 100. for j in range(0, self.plotMaxJointDist)],
-                        label=bs[0], c=curveColors[bs_idx % len(curveColors)], 
-                        linestyle=self.linestyles[bs_idx % len(self.linestyles)], 
+                        label=bs[0], c=curveColors[bs_idx % len(curveColors)],
+                        linestyle=self.linestyles[bs_idx % len(self.linestyles)],
                         linewidth=lineWidth)
                 bs_idx += 1
         plt.xlabel('Distance threshold / mm')
@@ -392,22 +392,22 @@ class HandposeEvaluation(object):
         # lgd = ax.legend(handles, labels, loc='lower right', ncol=1) #, bbox_to_anchor=(0.5,-0.1)
         lgd = ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3)
         plt.show(block=False)
-        fig.savefig(os.path.join(basePath,'{}_framesMaxWithin.pdf'.format(basename)), 
+        fig.savefig(os.path.join(basePath,'{}_framesMaxWithin.pdf'.format(basename)),
                     bbox_extra_artists=(lgd,), bbox_inches='tight')
         plt.close(fig)
-        
+
         # plot number of frames within; mean distance
         fig = plt.figure()
         ax = fig.add_subplot(111)
         ax.plot([self.getNumFramesWithinMeanDist(j) / float(self.joints.shape[0]) * 100. for j in range(0, self.plotMeanJointDist)],
-                label=methodName, c=curveColors[0], linestyle=self.linestyles[0], 
+                label=methodName, c=curveColors[0], linestyle=self.linestyles[0],
                 linewidth=lineWidth)
         bs_idx = 1
         if baseline is not None:
             for bs in baseline:
                 ax.plot([bs[1].getNumFramesWithinMeanDist(j) / float(self.joints.shape[0]) * 100. for j in range(0, self.plotMeanJointDist)],
-                        label=bs[0], c=curveColors[bs_idx % len(curveColors)], 
-                        linestyle=self.linestyles[bs_idx % len(self.linestyles)], 
+                        label=bs[0], c=curveColors[bs_idx % len(curveColors)],
+                        linestyle=self.linestyles[bs_idx % len(self.linestyles)],
                         linewidth=lineWidth)
                 bs_idx += 1
         plt.xlabel('Distance threshold / mm')
@@ -419,22 +419,22 @@ class HandposeEvaluation(object):
         # lgd = ax.legend(handles, labels, loc='lower right', ncol=1) #, bbox_to_anchor=(0.5,-0.1)
         lgd = ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3)
         plt.show(block=False)
-        fig.savefig(os.path.join(basePath,'{}_framesMeanWithin.pdf'.format(basename)), 
+        fig.savefig(os.path.join(basePath,'{}_framesMeanWithin.pdf'.format(basename)),
                     bbox_extra_artists=(lgd,), bbox_inches='tight')
         plt.close(fig)
-        
+
         # plot number of frames within; median distance
         fig = plt.figure()
         ax = fig.add_subplot(111)
         ax.plot([self.getNumFramesWithinMedianDist(j) / float(self.joints.shape[0]) * 100. for j in range(0, self.plotMedianJointDist)],
-                label=methodName, c=curveColors[0], linestyle=self.linestyles[0], 
+                label=methodName, c=curveColors[0], linestyle=self.linestyles[0],
                 linewidth=lineWidth)
         bs_idx = 1
         if baseline is not None:
             for bs in baseline:
                 ax.plot([bs[1].getNumFramesWithinMedianDist(j) / float(self.joints.shape[0]) * 100. for j in range(0, self.plotMedianJointDist)],
-                        label=bs[0], c=curveColors[bs_idx % len(curveColors)], 
-                        linestyle=self.linestyles[bs_idx % len(self.linestyles)], 
+                        label=bs[0], c=curveColors[bs_idx % len(curveColors)],
+                        linestyle=self.linestyles[bs_idx % len(self.linestyles)],
                         linewidth=lineWidth)
                 bs_idx += 1
         plt.xlabel('Distance threshold / mm')
@@ -446,22 +446,22 @@ class HandposeEvaluation(object):
         # lgd = ax.legend(handles, labels, loc='lower right', ncol=1) #, bbox_to_anchor=(0.5,-0.1)
         lgd = ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3)
         plt.show(block=False)
-        fig.savefig(os.path.join(basePath,'{}_framesMedianWithin.pdf'.format(basename)), 
+        fig.savefig(os.path.join(basePath,'{}_framesMedianWithin.pdf'.format(basename)),
                     bbox_extra_artists=(lgd,), bbox_inches='tight')
         plt.close(fig)
-        
+
         # plot number of joints within
         fig = plt.figure()
         ax = fig.add_subplot(111)
         ax.plot([self.getNumJointsWithinDist(j) / float(self.joints.shape[0] * self.joints.shape[1]) * 100. for j in range(0, self.plotMaxJointDist)],
-                label=methodName, c=curveColors[0], linestyle=self.linestyles[0], 
+                label=methodName, c=curveColors[0], linestyle=self.linestyles[0],
                 linewidth=lineWidth)
         bs_idx = 1
         if baseline is not None:
             for bs in baseline:
                 ax.plot([bs[1].getNumJointsWithinDist(j) / float(self.joints.shape[0] * self.joints.shape[1]) * 100. for j in range(0, self.plotMaxJointDist)],
-                        label=bs[0], c=curveColors[bs_idx % len(curveColors)], 
-                        linestyle=self.linestyles[bs_idx % len(self.linestyles)], 
+                        label=bs[0], c=curveColors[bs_idx % len(curveColors)],
+                        linestyle=self.linestyles[bs_idx % len(self.linestyles)],
                         linewidth=lineWidth)
                 bs_idx += 1
         plt.xlabel('Distance threshold / mm')
@@ -473,22 +473,22 @@ class HandposeEvaluation(object):
         # lgd = ax.legend(handles, labels, loc='lower right', ncol=1) #, bbox_to_anchor=(0.5,-0.1)
         lgd = ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3)
         plt.show(block=False)
-        fig.savefig(os.path.join(basePath,'{}_jointsWithin.pdf'.format(basename)), 
+        fig.savefig(os.path.join(basePath,'{}_jointsWithin.pdf'.format(basename)),
                     bbox_extra_artists=(lgd,), bbox_inches='tight')
         plt.close(fig)
-        
+
         # plot mean error per frame
         fig = plt.figure()
         ax = fig.add_subplot(111)
         ax.plot(numpy.nanmean(numpy.sqrt(numpy.square(self.gt - self.joints).sum(axis=2)), axis=1),
-                label=methodName, c=curveColors[0], linestyle=self.linestyles[0], 
+                label=methodName, c=curveColors[0], linestyle=self.linestyles[0],
                 linewidth=lineWidth)
         bs_idx = 1
         if baseline is not None:
             for bs in baseline:
                 ax.plot(numpy.nanmean(numpy.sqrt(numpy.square(self.gt - bs[1].joints).sum(axis=2)), axis=1),
-                        label=bs[0], c=curveColors[bs_idx % len(curveColors)], 
-                        linestyle=self.linestyles[bs_idx % len(self.linestyles)], 
+                        label=bs[0], c=curveColors[bs_idx % len(curveColors)],
+                        linestyle=self.linestyles[bs_idx % len(self.linestyles)],
                         linewidth=lineWidth)
                 bs_idx += 1
         plt.xlabel('frame ID')
@@ -500,10 +500,10 @@ class HandposeEvaluation(object):
         # lgd = ax.legend(handles, labels, loc='lower right', ncol=1) #, bbox_to_anchor=(0.5,-0.1)
         lgd = ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3)
         plt.show(block=False)
-        fig.savefig(os.path.join(basePath,'{}_frameerror.pdf'.format(basename)), 
+        fig.savefig(os.path.join(basePath,'{}_frameerror.pdf'.format(basename)),
                     bbox_extra_artists=(lgd,), bbox_inches='tight')
         plt.close(fig)
-        
+
         # plot mean error for each joint
         ind = numpy.arange(self.joints.shape[1]+1)  # the x locations for the groups, +1 for mean
         if baseline is not None:
@@ -537,7 +537,7 @@ class HandposeEvaluation(object):
         handles, labels = ax.get_legend_handles_labels()
         lgd = ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3)
         plt.show(block=False)
-        fig.savefig(os.path.join(basePath,'{}_joint_mean.pdf'.format(basename)), 
+        fig.savefig(os.path.join(basePath,'{}_joint_mean.pdf'.format(basename)),
                     bbox_extra_artists=(lgd,), bbox_inches='tight')
         plt.close(fig)
 
@@ -548,13 +548,13 @@ class HandposeEvaluation(object):
         else:
             width = 0.67
         fig, ax = plt.subplots()
-        ax.bar(ind, numpy.array([self.getJointMaxError(j) for j in range(self.joints.shape[1])]), 
+        ax.bar(ind, numpy.array([self.getJointMaxError(j) for j in range(self.joints.shape[1])]),
                width, label=methodName, color=curveColors[0])
         bs_idx = 1
         if baseline is not None:
             for bs in baseline:
                 ax.bar(ind + width * float(bs_idx),
-                       numpy.array([bs[1].getJointMaxError(j) for j in range(self.joints.shape[1])]), 
+                       numpy.array([bs[1].getJointMaxError(j) for j in range(self.joints.shape[1])]),
                        width, label=bs[0], color=curveColors[bs_idx % len(curveColors)])
                 bs_idx += 1
         ax.set_xticks(ind + width)
@@ -565,16 +565,16 @@ class HandposeEvaluation(object):
         handles, labels = ax.get_legend_handles_labels()
         lgd = ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3)
         plt.show(block=False)
-        fig.savefig(os.path.join(basePath,'{}_joint_max.pdf'.format(basename)), 
+        fig.savefig(os.path.join(basePath,'{}_joint_max.pdf'.format(basename)),
                     bbox_extra_artists=(lgd,), bbox_inches='tight')
         plt.close(fig)
-        
-    
+
+
     def writeQualitativeResults(self, data, crop_transforms, predictions, targets, test_loader, args):
         """
         Plot qualitative results on image data and write to disk
         :param data: image crops
-        :param crop_transforms: transformation matrices specifying tranformation 
+        :param crop_transforms: transformation matrices specifying tranformation
             of each crop as returned by the data loader
         :param predictions: predicted joint positions
         :param targets: ground truth joint positions
@@ -593,11 +593,11 @@ class HandposeEvaluation(object):
                 t_g = transformPoint2D(gtI[joint], crop_transforms[ind])
                 gtI[joint, 0] = t_g[0]
                 gtI[joint, 1] = t_g[1]
-            self.plotResult(data[ind,0], gtI, jtI, "{}_i{}".format(args.exp_name, ind))        
+            self.plotResult(data[ind,0], gtI, jtI, "{}_i{}".format(args.exp_name, ind))
 
 
-    def plotResult(self, dpt, gtcrop, joint, name=None, showGT=True, 
-                   niceColors=False, showJoints=True, showDepth=True, 
+    def plotResult(self, dpt, gtcrop, joint, name=None, showGT=True,
+                   niceColors=False, showJoints=True, showDepth=True,
                    basePath=None, connection_linewidth=2.0):
         """
         Show the annotated depth image
@@ -607,14 +607,14 @@ class HandposeEvaluation(object):
         :param name: name of file to save, if None return image
         :param showGT: show groundtruth annotation
         :param niceColors: plot nice gradient colors for each joint
-        :param basePath: if not None this path is used as base-path instead of 
+        :param basePath: if not None this path is used as base-path instead of
                          the default path (self.outputPath)
         :return: None, or image if name = None
         """
-                                                                                                                                                   
+
         if basePath is None:
             basePath = self.outputPath
-            
+
         fig = plt.figure()
         ax = fig.add_subplot(111)
         ax.axis('off')
@@ -639,12 +639,12 @@ class HandposeEvaluation(object):
             plt.gca().invert_yaxis()
         # use child class plots
         if showJoints:
-            self.plotJoints(ax, joint, color=('r' if niceColors is False else 'nice'), 
-                            jcolor=('r' if niceColors is False else None), 
+            self.plotJoints(ax, joint, color=('r' if niceColors is False else 'nice'),
+                            jcolor=('r' if niceColors is False else None),
                             connection_linewidth=connection_linewidth)  # ours
         if showGT:
-            self.plotJoints(ax, gtcrop, color=('b' if niceColors is False else 'nice'), 
-                            jcolor=('b' if niceColors is False else None), 
+            self.plotJoints(ax, gtcrop, color=('b' if niceColors is False else 'nice'),
+                            jcolor=('b' if niceColors is False else None),
                             connection_linewidth=connection_linewidth)  # groundtruth
         plt.tight_layout(pad=0)
         plt.show(block=False)
@@ -660,8 +660,8 @@ class HandposeEvaluation(object):
             data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
             plt.close(fig)
             return data
-            
-            
+
+
     def plotJoints(self, ax, joint, color='nice', jcolor=None, connection_linewidth=2.0):
         """
         Plot connected joints
@@ -673,18 +673,18 @@ class HandposeEvaluation(object):
         for i in range(len(self.jointConnections)):
             ax.plot(numpy.hstack((joint[self.jointConnections[i][0], 0], joint[self.jointConnections[i][1], 0])),
                     numpy.hstack((joint[self.jointConnections[i][0], 1], joint[self.jointConnections[i][1], 1])),
-                    c=(color if color is not 'nice' else self.jointConnectionColors[i]), 
+                    c=(color if color is not 'nice' else self.jointConnectionColors[i]),
                     linewidth=connection_linewidth)
-        # Draw joints                    
+        # Draw joints
         color_index = 0
         for i in range(joint.shape[0]):
             idx = color_index % len(self.jointcolors)
-            ax.scatter(joint[i, 0], joint[i, 1], 
-                       c=(self.jointcolors[idx] if jcolor is None else jcolor), 
+            ax.scatter(joint[i, 0], joint[i, 1],
+                       c=(self.jointcolors[idx] if jcolor is None else jcolor),
                        marker='.', s=400)
             color_index += 1
-                    
-                    
+
+
     def writeResults2Textfile(self, filepath):
         with open(filepath, 'w') as f:
             f.write("Mean-error(mm): {}\n".format(self.getMeanError()))
@@ -723,7 +723,7 @@ class NYUHandposeEvaluation(HandposeEvaluation):
                                'R1', 'R2', 'R3', 'R4', 'R5', 'R6',
                                'M1', 'M2', 'M3', 'M4', 'M5', 'M6',
                                'I1', 'I2', 'I3', 'I4', 'I5', 'I6',
-                               'T1', 'T2', 'T3', 'T4', 'T5', 
+                               'T1', 'T2', 'T3', 'T4', 'T5',
                                'C1', 'C2', 'C3',
                                'W1', 'W2', 'W3', 'W4')
             self.jointConnections = [[33, 5], [5, 4], [4, 3], [3, 2], [2, 1], [1, 0],
@@ -742,7 +742,7 @@ class NYUHandposeEvaluation(HandposeEvaluation):
                                           matplotlib.colors.hsv_to_rgb(numpy.asarray([[[0.16, 1, 0.7]]]))[0, 0], matplotlib.colors.hsv_to_rgb(numpy.asarray([[[0.16, 1, 0.7]]]))[0, 0], matplotlib.colors.hsv_to_rgb(numpy.asarray([[[0.16, 1, 1.0]]]))[0, 0], matplotlib.colors.hsv_to_rgb(numpy.asarray([[[0.16, 1, 1.0]]]))[0, 0]]
 
         elif joints == NyuAnnoType.EVAL_JOINTS_ORIGINAL:
-            self.jointNames = ('P1', 'P2', 'R1', 'R2', 'M1', 'M2', 
+            self.jointNames = ('P1', 'P2', 'R1', 'R2', 'M1', 'M2',
                                'I1', 'I2', 'T1', 'T2', 'T3', 'W1', 'W2', 'C')
             # re-ordered joint conncections to better correspond to joints (fingers from tip to "mcp"-joint)
             self.jointConnections = [[1, 0], [13, 1], # pinky

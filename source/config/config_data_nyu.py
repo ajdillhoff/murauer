@@ -31,7 +31,7 @@ args_data = basetypes.Arguments()
 args_data.dataset_type = DatasetType.NYU
 
 # Change to point to the original NYU dataset
-args_data.nyu_data_basepath = "/path/to/NyuDataset/original_data"
+args_data.nyu_data_basepath = "/home/alex/Data/nyu/dataset"
 
 # If a "cache" should be used (=> faster loading/training), change the path
 args_data.use_pickled_cache = False

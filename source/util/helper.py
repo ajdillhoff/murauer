@@ -18,7 +18,7 @@ along with MURAUER.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import os
-import cPickle
+import pickle
 
 
 def prepare_output_dirs_files(args, default_root_dir):
@@ -57,7 +57,7 @@ def save_params(filepath, args):
     args.lr_lambda_pretrain = dummy_lambda_string
     args.used_device        = "{}".format(args.used_device)
     with open(filepath, "wb") as f:
-        cPickle.dump(args, f, protocol=cPickle.HIGHEST_PROTOCOL)
+        pickle.dump(args, f, protocol=pickle.HIGHEST_PROTOCOL)
     args.lr_lambda          = lambdafunction
     args.lr_lambda_pretrain = lambdafunction_pretrain
     args.used_device        = used_torch_device
