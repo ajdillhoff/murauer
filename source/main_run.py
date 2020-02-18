@@ -30,6 +30,7 @@ except:
 # PyTorch
 import torch
 import torch.utils.data
+from torch.utils.tensorboard import SummaryWriter
 
 # Project specific
 import nets.netfactory as netfactory
@@ -60,6 +61,9 @@ with torch.cuda.device(args.gpu_id):
     torch.cuda.manual_seed(args.seed)
     args.rng = np.random.RandomState(args.seed)
 
+    # Tensorboard Writer
+    writer = SummaryWriter("../runs")
+
     prepare_output_dirs_files(args, os.path.dirname(os.path.realpath(__file__)))
     save_params(args.filepath_args, args)
 
@@ -84,11 +88,7 @@ with torch.cuda.device(args.gpu_id):
     if args.do_train:
         print("Training...")
         trainer = SuperTrainer()
-        trainer.train(model, model_d, train_loaders, val_loader, args, None)
-
-        # Backup experiment logs as zip file
-        filename = tb_log.to_zip(args.log_filepath)
-        print("Stored log in file {}".format(filename))
+        trainer.train(model, model_d, train_loaders, val_loader, args, writer)
 
     # Load stored (best/last) model file
     descr_str = "best" if args.do_use_best_model else "last"

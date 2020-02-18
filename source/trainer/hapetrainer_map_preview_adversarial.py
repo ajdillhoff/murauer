@@ -26,6 +26,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
+from torch.utils.tensorboard import SummaryWriter
 
 import numpy as np
 
@@ -124,28 +125,29 @@ class HaPeTrainerMapPreviewAdversarial(object):
 
         if self.log is not None:
             try:
-                self.log.add_scalar_value("train-loss-full", loss.item(),
-                                          wall_time=time.clock(), step=step_id)
-                self.log.add_scalar_value("train-loss-real", loss_real.item(),
-                                          wall_time=time.clock(), step=step_id)
-                self.log.add_scalar_value("train-loss-synth", loss_synth.item(),
-                                          wall_time=time.clock(), step=step_id)
-                self.log.add_scalar_value("train-loss-emb", loss_emb.item(),
-                                          wall_time=time.clock(), step=step_id)
-                self.log.add_scalar_value("train-loss-preview", loss_preview.item(),
-                                          wall_time=time.clock(), step=step_id)
-                self.log.add_scalar_value("train-loss-preview-real", loss_preview_r.item() / sum_prev_r,
-                                          wall_time=time.clock(), step=step_id)
-                self.log.add_scalar_value("train-loss-preview-synth", loss_preview_s.item() / sum_prev_s,
-                                          wall_time=time.clock(), step=step_id)
-                self.log.add_scalar_value("train-loss-emb-adv", loss_emb_adv.item(),
-                                          wall_time=time.clock(), step=step_id)
+                self.log.add_scalar("Loss/train", loss.item(),
+                                    step_id)
+                self.log.add_scalar("Real-loss/train", loss_real.item(),
+                                    step_id)
+                self.log.add_scalar("Synth-loss/train", loss_synth.item(),
+                                    step_id)
+                self.log.add_scalar("Emb-loss/train", loss_emb.item(),
+                                    step_id)
+                self.log.add_scalar("Preview-loss/train", loss_preview.item(),
+                                    step_id)
+                self.log.add_scalar("Preview-real-loss/train",
+                                    loss_preview_r.item() / sum_prev_r,
+                                    step_id)
+                self.log.add_scalar("Preview-synth-loss/train",
+                                    loss_preview_s.item() / sum_prev_s,
+                                    step_id)
+                self.log.add_scalar("emb-adv-loss/train", loss_emb_adv.item(),
+                                    step_id)
             except:
-                print("Logging to server failed.")
+                print("[DEBUG] hapetrainer_map_preview_adversarial: no tensorboard writer available.")
                 pass
 
         return loss
-
 
     def loss_function_pretrain(self, joints_pred, joints_target, step_id):
         loss_joints = mse(joints_pred.view_as(joints_target), joints_target)
@@ -155,22 +157,18 @@ class HaPeTrainerMapPreviewAdversarial(object):
 
         if self.log is not None:
             try:
-                self.log.add_scalar_value("pretrain-loss-step", loss.item(),
-                                          wall_time=time.clock(), step=step_id)
+                self.log.add_scalar("Loss/pretrain", loss.item(), step_id)
             except:
-                print("Logging to server failed.")
+                print("[DEBUG] hapetrainer_map_preview_adversarial: no tensorboard writer available.")
                 pass
 
         return loss
 
-
     def loss_function_discriminator(self, prediction, target):
         return sse(prediction.view_as(target), target)
 
-
     def loss_function_test(self, estimate, target):
         return losses.joint_pos_distance_loss(estimate, target)
-
 
     def train(self, model, optim_params, model_discriminator, num_epochs,
               lr=1e-3, weight_decay=0.001, optim_type=0, do_pretrain=True):
@@ -267,7 +265,6 @@ class HaPeTrainerMapPreviewAdversarial(object):
 
         t_train = t_1 - t_0
         print("Time (wall) for train: {:.1f} sec. ({:.1f} hours)".format(t_train, t_train / 3600.))
-
 
     def train_epoch(self, epoch, model, model_d, optimizer, optimizer_d,
                     num_iterations):
@@ -435,21 +432,20 @@ class HaPeTrainerMapPreviewAdversarial(object):
                     errD.item() / batch_size_curr, D_s, D_r, D_r2))
                 if self.log is not None:
                     try:
-                        self.log.add_scalar_value("train-loss", loss.item(),
-                                                  wall_time=time.clock(), step=step)
-                        self.log.add_scalar_value("discriminator-loss", errD.item(),
-                                                  wall_time=time.clock(), step=step)
-                        self.log.add_scalar_value("disc-pred-real", D_r.item(),
-                                                  wall_time=time.clock(), step=step)
-                        self.log.add_scalar_value("disc-pred-synth", D_s.item(),
-                                                  wall_time=time.clock(), step=step)
+                        self.log.add_scalar("Loss/train", loss.item(),
+                                                  step)
+                        self.log.add_scalar("Loss/train-discriminator", errD.item(),
+                                                  step)
+                        self.log.add_scalar("Accuracy/disc-real", D_r.item(),
+                                                  step)
+                        self.log.add_scalar("Accuracy/disc-synth", D_s.item(),
+                                                  step)
                     except:
-                        print("Logging to server failed.")
+                        print("[DEBUG] hapetrainer_map_preview_adversarial: no tensorboard writer available.")
                         pass
 
         print('====> Epoch: {} Average loss: {:.4f}'.format(
               epoch, train_loss / num_samples_done ))
-
 
     def pretrain_using_synth(self, model, num_epochs,
               lr=1e-3, weight_decay=0.001, optim_type=0):
@@ -547,11 +543,11 @@ class HaPeTrainerMapPreviewAdversarial(object):
                     loss.item() / batch_size_curr))
                 if self.log is not None:
                     try:
-                        self.log.add_scalar_value("pretrain-loss",
+                        self.log.add_scalar("Loss/pretrain",
                                                   loss.item() / batch_size_curr,
-                                                  wall_time=time.clock(), step=step)
+                                                  step)
                     except:
-                        print("Logging to server failed.")
+                        print("[DEBUG] hapetrainer_map_preview_adversarial: no tensorboard writer available.")
                         pass
 
         print('====> Pre-Train Epoch: {} Average loss: {:.4f}'.format(
@@ -595,10 +591,10 @@ class HaPeTrainerMapPreviewAdversarial(object):
             step = epoch * num_train_iterations_per_epoch
             if self.log is not None:
                 try:
-                    self.log.add_scalar_value(loss_name, test_loss,
-                                              wall_time=time.clock(), step=step)
+                    self.log.add_scalar("Loss/"+loss_name, test_loss,
+                                              step)
                 except:
-                    print("Logging to server failed.")
+                    print("[DEBUG] hapetrainer_map_preview_adversarial: no tensorboard writer available.")
                     pass
 
             return test_loss
